@@ -1,0 +1,10 @@
+# Messages Config
+
+# Kafka Config
+kafka:
+  brokers:
+    - "goletan-broker-name-1"
+    - "goletan-broker-name-2"
+  topic: "goletan-topic-name"
+  group_id: "goletan-group-id"
+  batch_size: 100
