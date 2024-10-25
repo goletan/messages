@@ -3,13 +3,18 @@ package main
 
 import (
 	"context"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/goletan/config"
 	"github.com/goletan/messages/kafka"
+	"github.com/goletan/messages/types"
 	"go.uber.org/zap"
 )
+
+var cfg types.MessageConfig
 
 func main() {
 	// Initialize logger
@@ -17,7 +22,11 @@ func main() {
 	defer logger.Sync()
 
 	// Load Kafka configuration
-	cfg := kafka.LoadConfig()
+
+	err := config.LoadConfig("Messages", &cfg, nil)
+	if err != nil {
+		log.Fatalf("Failed to load Kafka config: %v", err)
+	}
 
 	// Create context with cancel for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -33,10 +42,10 @@ func main() {
 	}()
 
 	// Create Kafka consumer and producer
-	consumer := kafka.NewKafkaConsumer(cfg, logger)
+	consumer := kafka.NewKafkaConsumer(&cfg, logger)
 	defer consumer.Close()
 
-	producer := kafka.NewKafkaProducer(cfg, logger)
+	producer := kafka.NewKafkaProducer(&cfg, logger)
 	defer producer.Close()
 
 	// Process messages from consumer
