@@ -2,6 +2,8 @@ module github.com/goletan/messages
 
 go 1.23.2
 
+replace github.com/goletan/config => ../config
+
 require github.com/segmentio/kafka-go v0.4.47
 
 require (
