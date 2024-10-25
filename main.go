@@ -22,7 +22,6 @@ func main() {
 	defer logger.Sync()
 
 	// Load Kafka configuration
-
 	err := config.LoadConfig("Messages", &cfg, nil)
 	if err != nil {
 		log.Fatalf("Failed to load Kafka config: %v", err)
