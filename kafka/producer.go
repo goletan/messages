@@ -40,36 +40,6 @@ func NewProducer(cfg *types.MessageConfig, log *zap.Logger) *Producer {
 	}
 }
 
-// SendMessage sends a message to the Kafka topic, batching messages to improve throughput.
-func (p *Producer) SendMessage(ctx context.Context, key, value string, backoff time.Duration) error {
-	for i := 0; i <= p.Retries; i++ {
-		select {
-		case <-ctx.Done():
-			p.logger.Warn("Context canceled before sending message", zap.String("topic", p.Writer.Topic))
-			return ctx.Err()
-		default:
-		}
-
-		// Attempt to send the message
-		msg := segmentio.Message{
-			Key:   []byte(key),
-			Value: []byte(value),
-		}
-		err := p.Writer.WriteMessages(ctx, msg)
-		if err == nil {
-			p.logger.Info("Message sent successfully", zap.String("topic", p.Writer.Topic), zap.ByteString("key", msg.Key))
-			return nil
-		}
-
-		// Log the failure and retry if there are attempts left
-		p.logger.Error("Failed to send message to Kafka", zap.Error(err), zap.String("topic", p.Writer.Topic), zap.Int("attempt", i+1))
-		time.Sleep(backoff * time.Duration(i+1))
-	}
-
-	p.logger.Error("Exhausted all retries for sending message", zap.String("topic", p.Writer.Topic), zap.ByteString("key", []byte(key)))
-	return ctx.Err()
-}
-
 // Flush sends any remaining messages in the batch.
 func (p *Producer) Flush(ctx context.Context) error {
 	if len(p.batch) == 0 {

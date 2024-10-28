@@ -4,6 +4,8 @@ go 1.23.2
 
 replace github.com/goletan/config => ../config
 
+replace github.com/goletan/observability => ../observability
+
 require (
 	github.com/goletan/config v0.0.0-00010101000000-000000000000
 	github.com/segmentio/kafka-go v0.4.47

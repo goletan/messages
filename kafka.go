@@ -1,4 +1,4 @@
-// /messages/main.go
+// /messages/kafka.go
 package kafka
 
 import (
@@ -10,14 +10,16 @@ import (
 
 	"github.com/goletan/messages/kafka"
 	"github.com/goletan/messages/types"
+	"github.com/goletan/observability"
 	segmentio "github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
 
-var cfg types.MessageConfig
-
-// InitKafka initializes Kafka consumer and producer, setting up graceful shutdown.
+// Init initializes Kafka consumer and producer, setting up graceful shutdown.
 func Init(cfg *types.MessageConfig, logger *zap.Logger) (context.Context, context.CancelFunc, *kafka.Consumer, *kafka.Producer, error) {
+	// Initialize metrics collection
+	observability.InitMetrics()
+
 	// Create context with cancel for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -90,11 +92,10 @@ func ProcessMessages(ctx context.Context, consumer *kafka.Consumer, producer *ka
 	}()
 }
 
-// handleMessage processes a message and sends a response via producer.
-func handleMessage(ctx context.Context, producer *kafka.Producer, key, value string, logger *zap.Logger) error {
-	// Implement message processing logic here
-	// Example: send an acknowledgment back to Kafka
-	ackKey := key + ":ack"
-	ackValue := "Processed: " + value
-	return producer.SendMessage(ctx, ackKey, ackValue, 5)
+// SendPublicMessage allows other Nemetons to send messages through Kafka.
+func SendPublicMessage(producer *kafka.Producer, ctx context.Context, key, value string, retries int, backoff time.Duration) error {
+	if retries > 0 {
+		return producer.SendMessageWithRetry(ctx, key, value, retries, backoff)
+	}
+	return producer.SendMessage(ctx, key, value)
 }

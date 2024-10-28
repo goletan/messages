@@ -47,6 +47,7 @@ func (c *Consumer) ReadMessage(ctx context.Context) (string, string, error) {
 	}
 
 	c.logger.Info("Message received", zap.String("topic", c.Reader.Config().Topic), zap.ByteString("key", msg.Key), zap.ByteString("value", msg.Value))
+	observability.IncrementKafkaConsumed()
 	return string(msg.Key), string(msg.Value), nil
 }
 
