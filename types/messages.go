@@ -1,4 +1,4 @@
-// /messages/types/kafka.go
+// /messages/types/messages.go
 package types
 
 type MessageConfig struct {

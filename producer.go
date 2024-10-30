@@ -1,21 +1,21 @@
-// /messages/kafka/producer.go
-package kafka
+// /messages/producer.go
+package messages
 
 import (
 	"context"
 	"time"
 
 	"github.com/goletan/messages/types"
-	segmentio "github.com/segmentio/kafka-go"
-	segmentio_compress "github.com/segmentio/kafka-go/compress"
+	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/compress"
 	"go.uber.org/zap"
 )
 
 // Producer manages producing messages to Kafka.
 type Producer struct {
-	Writer      *segmentio.Writer
+	Writer      *kafka.Writer
 	logger      *zap.Logger
-	batch       []segmentio.Message
+	batch       []kafka.Message
 	batchSize   int
 	Retries     int
 	Compression string
@@ -23,7 +23,7 @@ type Producer struct {
 
 // NewProducer creates a new Kafka producer.
 func NewProducer(cfg *types.MessageConfig, log *zap.Logger) *Producer {
-	writerConfig := segmentio.WriterConfig{
+	writerConfig := kafka.WriterConfig{
 		Brokers:          cfg.Kafka.Brokers,
 		Topic:            cfg.Kafka.Topic,
 		BatchSize:        cfg.Kafka.BatchSize,
@@ -34,7 +34,7 @@ func NewProducer(cfg *types.MessageConfig, log *zap.Logger) *Producer {
 	writerConfig.WriteTimeout = time.Duration(cfg.Kafka.Timeout) * time.Second
 
 	return &Producer{
-		Writer:    segmentio.NewWriter(writerConfig),
+		Writer:    kafka.NewWriter(writerConfig),
 		logger:    log,
 		batchSize: cfg.Kafka.BatchSize,
 	}
@@ -74,16 +74,17 @@ func (p *Producer) Close() error {
 	return nil
 }
 
-func mapCompressionCodec(codec string) segmentio_compress.Codec {
+// Map codec compression from configuration
+func mapCompressionCodec(codec string) compress.Codec {
 	switch codec {
 	case "gzip":
-		return segmentio_compress.Gzip.Codec()
+		return compress.Gzip.Codec()
 	case "snappy":
-		return segmentio_compress.Snappy.Codec()
+		return compress.Snappy.Codec()
 	case "lz4":
-		return segmentio_compress.Lz4.Codec()
+		return compress.Lz4.Codec()
 	case "zstd":
-		return segmentio_compress.Zstd.Codec()
+		return compress.Zstd.Codec()
 	default:
 		return nil // No compression by default
 	}

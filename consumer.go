@@ -1,29 +1,29 @@
-// /messages/kafka/consumer.go
-package kafka
+// /messages/consumer.go
+package messages
 
 import (
 	"context"
 
 	"github.com/goletan/messages/types"
-	segmentio "github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
 
 // Consumer manages consuming messages from Kafka.
 type Consumer struct {
-	Reader *segmentio.Reader
+	Reader *kafka.Reader
 	logger *zap.Logger
 }
 
 // NewConsumer creates a new Kafka consumer.
 func NewConsumer(cfg *types.MessageConfig, log *zap.Logger) *Consumer {
 	var startOffset int64
-	startOffset = segmentio.LastOffset
+	startOffset = kafka.LastOffset
 	if cfg.Kafka.Offset == "earliest" {
-		startOffset = segmentio.FirstOffset
+		startOffset = kafka.FirstOffset
 	}
 
-	readerConfig := segmentio.ReaderConfig{
+	readerConfig := kafka.ReaderConfig{
 		Brokers:     cfg.Kafka.Brokers,
 		Topic:       cfg.Kafka.Topic,
 		GroupID:     cfg.Kafka.GroupID,
@@ -33,7 +33,7 @@ func NewConsumer(cfg *types.MessageConfig, log *zap.Logger) *Consumer {
 	}
 
 	return &Consumer{
-		Reader: segmentio.NewReader(readerConfig),
+		Reader: kafka.NewReader(readerConfig),
 		logger: log,
 	}
 }
@@ -47,17 +47,17 @@ func (c *Consumer) ReadMessage(ctx context.Context) (string, string, error) {
 	}
 
 	c.logger.Info("Message received", zap.String("topic", c.Reader.Config().Topic), zap.ByteString("key", msg.Key), zap.ByteString("value", msg.Value))
-	observability.IncrementKafkaConsumed()
+	IncrementMessagesConsumed(msg.Topic, "read", "")
 	return string(msg.Key), string(msg.Value), nil
 }
 
 // Close closes the Kafka consumer connection.
 func (c *Consumer) Close() error {
 	if err := c.Reader.Close(); err != nil {
-		c.logger.Error("Failed to close Kafka consumer", zap.Error(err))
+		c.logger.Error("Failed to close consumer", zap.Error(err))
 		return err
 	}
 
-	c.logger.Info("Kafka consumer closed successfully")
+	c.logger.Info("Consumer closed successfully")
 	return nil
 }

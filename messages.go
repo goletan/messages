@@ -1,5 +1,5 @@
-// /messages/kafka.go
-package kafka
+// messages/messages.go
+package messages
 
 import (
 	"context"
@@ -8,17 +8,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/goletan/messages/kafka"
 	"github.com/goletan/messages/types"
-	"github.com/goletan/observability"
-	segmentio "github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
 
 // Init initializes Kafka consumer and producer, setting up graceful shutdown.
-func Init(cfg *types.MessageConfig, logger *zap.Logger) (context.Context, context.CancelFunc, *kafka.Consumer, *kafka.Producer, error) {
+func Init(cfg *types.MessageConfig, logger *zap.Logger) (context.Context, context.CancelFunc, *Consumer, *Producer, error) {
 	// Initialize metrics collection
-	observability.InitMetrics()
+	InitMetrics()
 
 	// Create context with cancel for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -33,16 +31,16 @@ func Init(cfg *types.MessageConfig, logger *zap.Logger) (context.Context, contex
 	}()
 
 	// Create Kafka consumer and producer
-	consumer := kafka.NewConsumer(cfg, logger)
-	producer := kafka.NewProducer(cfg, logger)
+	consumer := NewConsumer(cfg, logger)
+	producer := NewProducer(cfg, logger)
 
 	return ctx, cancel, consumer, producer, nil
 }
 
 // ProcessMessages processes messages from the Kafka consumer and handles them.
-func ProcessMessages(ctx context.Context, consumer *kafka.Consumer, producer *kafka.Producer, logger *zap.Logger) {
+func ProcessMessages(ctx context.Context, consumer *Consumer, producer *Producer, logger *zap.Logger) {
 	go func() {
-		batch := []segmentio.Message{}
+		batch := []kafka.Message{}
 		batchSize := producer.Writer.BatchSize
 		batchInterval := time.Second * 5
 		batchTicker := time.NewTicker(batchInterval)
@@ -70,7 +68,7 @@ func ProcessMessages(ctx context.Context, consumer *kafka.Consumer, producer *ka
 					continue
 				}
 
-				msg := segmentio.Message{
+				msg := kafka.Message{
 					Key:   []byte(key),
 					Value: []byte(value),
 				}
@@ -93,7 +91,7 @@ func ProcessMessages(ctx context.Context, consumer *kafka.Consumer, producer *ka
 }
 
 // SendPublicMessage allows other Nemetons to send messages through Kafka.
-func SendPublicMessage(producer *kafka.Producer, ctx context.Context, key, value string, retries int, backoff time.Duration) error {
+func SendPublicMessage(producer *Producer, ctx context.Context, key, value string, retries int, backoff time.Duration) error {
 	if retries > 0 {
 		return producer.SendMessageWithRetry(ctx, key, value, retries, backoff)
 	}

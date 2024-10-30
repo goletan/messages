@@ -1,5 +1,5 @@
-// /messages/kafka/retry.go
-package kafka
+// /messages/sender.go
+package messages
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 
 	"fmt"
 
-	"github.com/goletan/observability"
 	segmentio "github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
@@ -30,6 +29,7 @@ func (p *Producer) SendMessageWithRetry(ctx context.Context, key, value string, 
 		err := p.Writer.WriteMessages(ctx, msg)
 		if err == nil {
 			p.logger.Info("Message sent successfully", zap.String("topic", p.Writer.Topic), zap.ByteString("key", msg.Key))
+			IncrementMessagesProduced(msg.Topic, "sent", string(msg.Key))
 			return nil
 		}
 
@@ -56,6 +56,6 @@ func (p *Producer) SendMessage(ctx context.Context, key, value string) error {
 	}
 
 	p.logger.Info("Message sent successfully", zap.String("topic", p.Writer.Topic), zap.ByteString("key", msg.Key))
-	observability.IncrementKafkaProduced()
+	IncrementMessagesProduced(msg.Topic, "sent", string(msg.Key))
 	return nil
 }
