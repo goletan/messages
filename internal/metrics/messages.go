@@ -1,8 +1,8 @@
-// messages/metrics.go
-package messages
+// /messages/internal/metrics/messages_metrics.go
+package metrics
 
 import (
-	"github.com/goletan/observability/metrics"
+	observability "github.com/goletan/observability/pkg"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -30,8 +30,8 @@ var (
 	)
 )
 
-func InitMetrics() {
-	metrics.NewManager().Register(&MessagesMetrics{})
+func InitMetrics(observer *observability.Observability) {
+	observer.Metrics.Register(&MessagesMetrics{})
 }
 
 func (em *MessagesMetrics) Register() error {

@@ -1,24 +1,24 @@
-// /messages/consumer.go
+// /messages/pkg/consumer.go
 package messages
 
 import (
 	"context"
 
-	"github.com/goletan/messages/types"
+	"github.com/goletan/messages/internal/types"
+	observability "github.com/goletan/observability/pkg"
 	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
 
 // Consumer manages consuming messages from Kafka.
 type Consumer struct {
-	Reader *kafka.Reader
-	logger *zap.Logger
+	Reader        *kafka.Reader
+	observability *observability.Observability
 }
 
 // NewConsumer creates a new Kafka consumer.
-func NewConsumer(cfg *types.MessageConfig, log *zap.Logger) *Consumer {
-	var startOffset int64
-	startOffset = kafka.LastOffset
+func NewConsumer(cfg *types.MessageConfig, obs *observability.Observability) *Consumer {
+	var startOffset int64 = kafka.LastOffset
 	if cfg.Kafka.Offset == "earliest" {
 		startOffset = kafka.FirstOffset
 	}
@@ -33,8 +33,8 @@ func NewConsumer(cfg *types.MessageConfig, log *zap.Logger) *Consumer {
 	}
 
 	return &Consumer{
-		Reader: kafka.NewReader(readerConfig),
-		logger: log,
+		Reader:        kafka.NewReader(readerConfig),
+		observability: obs,
 	}
 }
 
@@ -42,22 +42,22 @@ func NewConsumer(cfg *types.MessageConfig, log *zap.Logger) *Consumer {
 func (c *Consumer) ReadMessage(ctx context.Context) (string, string, error) {
 	msg, err := c.Reader.ReadMessage(ctx)
 	if err != nil {
-		c.logger.Error("Failed to read message from Kafka", zap.Error(err), zap.String("topic", c.Reader.Config().Topic))
+		c.observability.Logger.Error("Failed to read message from Kafka", zap.Error(err), zap.String("topic", c.Reader.Config().Topic))
 		return "", "", err
 	}
 
-	c.logger.Info("Message received", zap.String("topic", c.Reader.Config().Topic), zap.ByteString("key", msg.Key), zap.ByteString("value", msg.Value))
-	IncrementMessagesConsumed(msg.Topic, "read", "")
+	c.observability.Logger.Info("Message received", zap.String("topic", c.Reader.Config().Topic), zap.ByteString("key", msg.Key), zap.ByteString("value", msg.Value))
+	metrics.IncrementMessagesConsumed(msg.Topic, "read", "")
 	return string(msg.Key), string(msg.Value), nil
 }
 
 // Close closes the Kafka consumer connection.
 func (c *Consumer) Close() error {
 	if err := c.Reader.Close(); err != nil {
-		c.logger.Error("Failed to close consumer", zap.Error(err))
+		c.observability.Logger.Error("Failed to close consumer", zap.Error(err))
 		return err
 	}
 
-	c.logger.Info("Consumer closed successfully")
+	c.observability.Logger.Info("Consumer closed successfully")
 	return nil
 }

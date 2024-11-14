@@ -1,5 +1,4 @@
-# Messages Config
-
+# messages/config.yaml
 # Kafka Config
 kafka:
   brokers:

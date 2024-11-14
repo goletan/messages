@@ -3,39 +3,11 @@ package messages
 
 import (
 	"context"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
-	"github.com/goletan/messages/types"
 	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 )
-
-// Init initializes Kafka consumer and producer, setting up graceful shutdown.
-func Init(cfg *types.MessageConfig, logger *zap.Logger) (context.Context, context.CancelFunc, *Consumer, *Producer, error) {
-	// Initialize metrics collection
-	InitMetrics()
-
-	// Create context with cancel for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-
-	// Handle system interrupts for graceful shutdown
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-signalChan
-		logger.Info("Received shutdown signal")
-		cancel()
-	}()
-
-	// Create Kafka consumer and producer
-	consumer := NewConsumer(cfg, logger)
-	producer := NewProducer(cfg, logger)
-
-	return ctx, cancel, consumer, producer, nil
-}
 
 // ProcessMessages processes messages from the Kafka consumer and handles them.
 func ProcessMessages(ctx context.Context, consumer *Consumer, producer *Producer, logger *zap.Logger) {

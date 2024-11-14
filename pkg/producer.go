@@ -5,7 +5,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/goletan/messages/types"
+	"github.com/goletan/messages/internal/types"
+	observability "github.com/goletan/observability/pkg"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/compress"
 	"go.uber.org/zap"
@@ -22,7 +23,7 @@ type Producer struct {
 }
 
 // NewProducer creates a new Kafka producer.
-func NewProducer(cfg *types.MessageConfig, log *zap.Logger) *Producer {
+func NewProducer(cfg *types.MessageConfig, obs *observability.Observability) *Producer {
 	writerConfig := kafka.WriterConfig{
 		Brokers:          cfg.Kafka.Brokers,
 		Topic:            cfg.Kafka.Topic,
@@ -35,7 +36,7 @@ func NewProducer(cfg *types.MessageConfig, log *zap.Logger) *Producer {
 
 	return &Producer{
 		Writer:    kafka.NewWriter(writerConfig),
-		logger:    log,
+		logger:    obs.Logger,
 		batchSize: cfg.Kafka.BatchSize,
 	}
 }

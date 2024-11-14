@@ -1,4 +1,4 @@
-// /messages/types/messages.go
+// /messages/internal/types/messages.go
 package types
 
 type MessageConfig struct {
