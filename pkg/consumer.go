@@ -4,6 +4,7 @@ package messages
 import (
 	"context"
 
+	"github.com/goletan/messages/internal/metrics"
 	"github.com/goletan/messages/internal/types"
 	observability "github.com/goletan/observability/pkg"
 	"github.com/segmentio/kafka-go"
