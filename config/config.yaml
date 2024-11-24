@@ -11,3 +11,11 @@ kafka:
   timeout: 10
   compression: "snappy"
   offset: "earliest"
+
+# DLQ Config
+dlq:
+  brokers:
+    - "goletan-broker-name-1"
+    - "goletan-broker-name-2"
+  topic: "goletan-topic-name"
+  compression: "snappy"

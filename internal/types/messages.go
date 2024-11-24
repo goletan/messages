@@ -12,4 +12,9 @@ type MessageConfig struct {
 		Compression string   `mapstructure:"compression"`
 		Offset      string   `mapstructure:"offset"`
 	} `mapstructure:"kafka"`
+	DLQ struct {
+		Brokers     []string `mapstructure:"brokers"`
+		Topic       string   `mapstructure:"topic"`
+		Compression string   `mapstructure:"compression"`
+	} `mapstructure:"dlq"`
 }

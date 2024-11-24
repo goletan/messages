@@ -7,6 +7,7 @@ import (
 
 	"github.com/goletan/messages/internal/types"
 	observability "github.com/goletan/observability/pkg"
+	obsKafka "github.com/goletan/observability/shared/kafka"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/compress"
 	"go.uber.org/zap"
@@ -14,15 +15,15 @@ import (
 
 // Producer manages producing messages to Kafka.
 type Producer struct {
-	Writer      *kafka.Writer
-	logger      *zap.Logger
-	batch       []kafka.Message
-	batchSize   int
-	Retries     int
-	Compression string
+	Writer        *kafka.Writer
+	observability *observability.Observability
+	batch         []kafka.Message
+	batchSize     int
+	Retries       int
+	Compression   string
 }
 
-// NewProducer creates a new Kafka producer.
+// NewProducer creates a new Kafka producer with configurable retries and timeouts.
 func NewProducer(cfg *types.MessageConfig, obs *observability.Observability) *Producer {
 	writerConfig := kafka.WriterConfig{
 		Brokers:          cfg.Kafka.Brokers,
@@ -30,14 +31,14 @@ func NewProducer(cfg *types.MessageConfig, obs *observability.Observability) *Pr
 		BatchSize:        cfg.Kafka.BatchSize,
 		CompressionCodec: mapCompressionCodec(cfg.Kafka.Compression),
 		WriteTimeout:     time.Duration(cfg.Kafka.Timeout) * time.Second,
+		Async:            true, // Use async writing for better performance
 	}
 
-	writerConfig.WriteTimeout = time.Duration(cfg.Kafka.Timeout) * time.Second
-
 	return &Producer{
-		Writer:    kafka.NewWriter(writerConfig),
-		logger:    obs.Logger,
-		batchSize: cfg.Kafka.BatchSize,
+		Writer:        kafka.NewWriter(writerConfig),
+		observability: obs,
+		batchSize:     cfg.Kafka.BatchSize,
+		Retries:       cfg.Kafka.Retries,
 	}
 }
 
@@ -47,13 +48,20 @@ func (p *Producer) Flush(ctx context.Context) error {
 		return nil
 	}
 
-	err := p.Writer.WriteMessages(ctx, p.batch...)
-	if err != nil {
-		p.logger.Error("Failed to flush batch of messages to Kafka", zap.Error(err), zap.String("topic", p.Writer.Topic))
-		return err
+	// Set a context with timeout for flushing messages.
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	// Use ProduceMessageWithObservability for each message in the batch
+	for _, msg := range p.batch {
+		err := obsKafka.ProduceMessageWithObservability(ctx, p.Writer, msg, p.observability.Tracer, p.observability.Logger)
+		if err != nil {
+			p.observability.Logger.Error("Failed to produce message with observability", zap.Error(err), zap.String("topic", p.Writer.Topic))
+			return err
+		}
 	}
 
-	p.logger.Info("Batch of messages flushed successfully", zap.String("topic", p.Writer.Topic), zap.Int("batchSize", len(p.batch)))
+	p.observability.Logger.Info("Batch of messages flushed successfully", zap.String("topic", p.Writer.Topic), zap.Int("batchSize", len(p.batch)))
 	p.batch = p.batch[:0] // Reset batch
 	return nil
 }
@@ -62,16 +70,16 @@ func (p *Producer) Flush(ctx context.Context) error {
 func (p *Producer) Close() error {
 	// Flush any remaining messages before closing
 	if err := p.Flush(context.Background()); err != nil {
-		p.logger.Error("Failed to flush messages during close", zap.Error(err))
+		p.observability.Logger.Error("Failed to flush messages during close", zap.Error(err))
 		return err
 	}
 
 	if err := p.Writer.Close(); err != nil {
-		p.logger.Error("Failed to close Kafka producer", zap.Error(err))
+		p.observability.Logger.Error("Failed to close Kafka producer", zap.Error(err))
 		return err
 	}
 
-	p.logger.Info("Kafka producer closed successfully")
+	p.observability.Logger.Info("Kafka producer closed successfully")
 	return nil
 }
 
