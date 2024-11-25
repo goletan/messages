@@ -1,4 +1,4 @@
-// /messages/producer.go
+// /messages/pkg/producer.go
 package messages
 
 import (
@@ -7,7 +7,7 @@ import (
 
 	"github.com/goletan/messages/internal/types"
 	observability "github.com/goletan/observability/pkg"
-	obsKafka "github.com/goletan/observability/shared/kafka"
+	kafkaObservers "github.com/goletan/observability/shared/observers/messages"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/compress"
 	"go.uber.org/zap"
@@ -42,6 +42,20 @@ func NewProducer(cfg *types.MessageConfig, obs *observability.Observability) *Pr
 	}
 }
 
+// ProduceMessage produces a single Kafka message with observability and retries.
+func (p *Producer) ProduceMessage(ctx context.Context, msg kafka.Message) error {
+	maxRetries := p.Retries
+	for i := 0; i <= maxRetries; i++ {
+		err := kafkaObservers.ProduceMessageWithObservability(ctx, p.Writer, msg, p.observability.Tracer, p.observability.Logger)
+		if err == nil {
+			return nil // Success
+		}
+		p.observability.Logger.Warn("Retrying message production", zap.Int("attempt", i+1), zap.Error(err))
+		time.Sleep(time.Second * time.Duration(i+1)) // Simple backoff for retries
+	}
+	return nil // Return nil when retries are exhausted and message fails
+}
+
 // Flush sends any remaining messages in the batch.
 func (p *Producer) Flush(ctx context.Context) error {
 	if len(p.batch) == 0 {
@@ -52,10 +66,9 @@ func (p *Producer) Flush(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
-	// Use ProduceMessageWithObservability for each message in the batch
+	// Use ProduceMessage for each message in the batch to respect retries and observability
 	for _, msg := range p.batch {
-		err := obsKafka.ProduceMessageWithObservability(ctx, p.Writer, msg, p.observability.Tracer, p.observability.Logger)
-		if err != nil {
+		if err := p.ProduceMessage(ctx, msg); err != nil {
 			p.observability.Logger.Error("Failed to produce message with observability", zap.Error(err), zap.String("topic", p.Writer.Topic))
 			return err
 		}

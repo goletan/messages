@@ -8,8 +8,9 @@ import (
 	"github.com/goletan/messages/internal/metrics"
 	"github.com/goletan/messages/internal/types"
 	observability "github.com/goletan/observability/pkg"
-	obsKafka "github.com/goletan/observability/shared/kafka"
+	kafkaObservers "github.com/goletan/observability/shared/observers/messages"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 )
 
@@ -54,13 +55,27 @@ func (c *Consumer) ReadMessage(ctx context.Context) (string, string, error) {
 		return "", "", err
 	}
 
-	// Call the ConsumeMessageWithObservability function to track the message consumption
-	err = obsKafka.ConsumeMessageWithObservability(ctx, msg, c.observability.Tracer, c.observability.Logger)
-	if err != nil {
+	// Use the observability shared function to start a span for Kafka message consumption
+	ctx, span := kafkaObservers.StartConsumerSpan(ctx, c.observability.Tracer, msg)
+	defer span.End()
+
+	// Simulate message processing here (replace with actual logic)
+	if err := processMessage(ctx, msg); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		c.observability.Logger.WithContext(map[string]interface{}{
+			"context": "Failed to process message",
+			"topic":   msg.Topic,
+			"key":     string(msg.Key),
+			"error":   err,
+		})
+
 		// Retry logic before sending to DLQ
 		maxRetries := 3
 		for i := 0; i < maxRetries; i++ {
-			if retryErr := obsKafka.ConsumeMessageWithObservability(ctx, msg, c.observability.Tracer, c.observability.Logger); retryErr == nil {
+			c.observability.Logger.Warn("Retrying message processing", zap.Int("attempt", i+1))
+			if retryErr := processMessage(ctx, msg); retryErr == nil {
+				span.SetStatus(codes.Ok, "Message processed successfully after retry")
 				goto CommitMessage // If retry is successful, commit the message
 			}
 		}
@@ -92,7 +107,7 @@ func (c *Consumer) ReadMessage(ctx context.Context) (string, string, error) {
 		}
 
 		// Now, actually send the DLQ message
-		err = obsKafka.ProduceMessageWithObservability(context.Background(), dlqProducer.Writer, dlqMsg, c.observability.Tracer, c.observability.Logger)
+		err = kafkaObservers.ProduceMessageWithObservability(context.Background(), dlqProducer.Writer, dlqMsg, c.observability.Tracer, c.observability.Logger)
 		if err != nil {
 			c.observability.Logger.Error("Failed to send message to DLQ", zap.Error(err), zap.String("topic", dlqMsg.Topic), zap.ByteString("key", dlqMsg.Key))
 			return "", "", err
@@ -109,6 +124,7 @@ CommitMessage:
 		return "", "", err
 	}
 
+	c.observability.Logger.Info("Message processed successfully", zap.String("topic", msg.Topic), zap.ByteString("key", msg.Key))
 	metrics.IncrementMessagesConsumed(msg.Topic, "read", "")
 	return string(msg.Key), string(msg.Value), nil
 }
@@ -121,5 +137,11 @@ func (c *Consumer) Close() error {
 	}
 
 	c.observability.Logger.Info("Consumer closed successfully")
+	return nil
+}
+
+// Simulate the message processing logic.
+func processMessage(ctx context.Context, msg kafka.Message) error {
+	// This is just a placeholder for actual message processing logic.
 	return nil
 }
